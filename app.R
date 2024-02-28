@@ -1,12 +1,25 @@
 library(shiny)
 library(shinyjs)
 library(bslib)
+library(shinylive)
+library(shinycssloaders)
+library(DT)
 
 library(standR)
 library(ggplot2)
+library(gridExtra)
+library(cowplot)
+library(ggrepel)
+library(ggpp)
 library(ggh4x)
+library(limma)
 
+library(tidyverse)
+library(tibble)
+set.seed(0)
 spe_ruv <- readRDS("data/spe_ruv.rds")
+design <- readRDS("data/design.rds")
+fit <- readRDS("data/fit.rds")
 
 annotation_condition <- c("fibroblast_IPF","fibrosis_IPF","neutral_IPF",
                           "inflammatory_NSIP","central_NSIP","peripheral_NSIP")
@@ -21,13 +34,12 @@ annotation_condition_list <- list(
 )
 
 
-
-
+options(pillar.sigfig = 4)
 
 
 
 # Define UI ----
-ui <- page_navbar(
+ui <- bslib::page_navbar(
   useShinyjs(),
   title = "ILD spatial transcriptomics visualization",
   #titlePanel("ILD spatial transcriptomics visualization"),
@@ -53,7 +65,7 @@ ui <- page_navbar(
     # )
   ),
    
-  nav_panel(
+  bslib::nav_panel(
     "Introduction",
     textOutput("introduction"),
     
@@ -61,25 +73,32 @@ ui <- page_navbar(
   ),
   
 
-  nav_panel(
+  bslib::nav_panel(
     "PCA",
     # uiOutput("text_out",
     #          style="width:100px;"), 
     uiOutput("pca",
-             style = 'padding: 4px'),
+             style = 'padding: 4px') %>% withSpinner() ,
     
     actionButton("toggle_PCAcustom", "Show/hide options",
                  style = 'display: inline-block; padding: 4px'),
     br(),
     
     div(id = "PCAcustom", style = "display: inline-block;",
-        uiOutput("customization")
+        uiOutput("customization") 
     )
    # uiOutput("debug")
   ),
   
-  nav_panel(
-    "Volcano plot"
+  bslib::nav_panel(
+    "Table",
+    uiOutput("table"),
+    downloadButton('downloadTable', "Save table")
+  ),
+  
+  bslib::nav_panel(
+    "Volcano",
+    uiOutput("volcano") %>% withSpinner()
   )
   
       
@@ -173,7 +192,7 @@ server <- function(input, output, session) {
 
     })
   
-
+# 
   # debugging use
   output$debug <- renderUI({
     ROIshapes <- list()
@@ -200,13 +219,14 @@ server <- function(input, output, session) {
   #   pca_ruv_results_subset <<- reducedDim(spe_ruv_subset, "PCA")
   # })
   
-  
+  # Subset data based on user input
   spe_ruv_subset <- eventReactive(reactiveRun(),{
     spe_ruv_subset <- spe_ruv[,grepl(paste(reactiveRun(), collapse = "|"), spe_ruv$anno_type)]
     spe_ruv_subset <- scater::runPCA(spe_ruv_subset)
     return(spe_ruv_subset)
   })
   
+  # PCA plot pt 1
   pca_ruv_results_subset <- eventReactive(spe_ruv_subset(),{
     return(reducedDim(spe_ruv_subset(), "PCA"))
   })
@@ -285,8 +305,206 @@ server <- function(input, output, session) {
   })
   
   
-  output$volcano <- renderUI({
+  # Contrasts
+  contrast <- eventReactive(reactiveRun(),{
+    comparisons <- list()
     
+    # Find the total number of combinations and iterate through
+    for (i in 1:(choose(length(reactiveRun()), 2))){
+      comparisons[i] <- 
+        # Textual description
+        # noquote(
+        #   paste0(
+        #     # First vs second elements in i-th pair
+        #     combn(reactiveRun(), 2, simplify=F)[[i]][1],
+        #     "vs",
+        #     combn(reactiveRun(), 2, simplify=F)[[i]][2]
+        #   )
+        # ),
+        # "=",
+        # Mathematical description
+        # this will suffice
+        noquote(
+          paste0(
+            combn(reactiveRun(), 2, simplify=F)[[i]][1],
+            "-",
+            combn(reactiveRun(), 2, simplify=F)[[i]][2]
+          )
+        )
+      
+    }
+    
+    con <- makeContrasts(
+      # Must use as.character()
+      contrasts=as.character(unlist(comparisons)),
+      levels = colnames(design)
+    )
+    
+    colnames(con) <- sub("-", "_vs_", colnames(con))
+    
+    return(con)
+  })
+  
+  
+  efit <- reactive({
+    fit_contrast <- contrasts.fit(fit, contrasts = contrast())
+    efit <- eBayes(fit_contrast, robust = TRUE)
+    return(efit)
+  })
+  
+  topTabDT <- reactive({
+    # fit_contrast <- contrasts.fit(fit, contrasts = contrast())
+    # efit <- eBayes(fit_contrast, robust = TRUE)
+    
+
+    dt <- topTable(efit(), coef=c(1:ncol(contrast())), n=Inf, p.value=0.05, adjust.method="BH", lfc=1) %>%
+      tibble::rownames_to_column(., var="Gene") %>%
+      select(!c('ProbeName','GeneID',  'HUGOSymbol', 'ProbeDisplayName', 'Accessions', 'GenomeBuild', 'AnalyteType', 'CodeClass', 'ProbePool',
+                'TargetGroup', 'genes_lowCount_overNsamples')) 
+    # mutate(across(which(is.numeric))) is not compatible with renderDT which is a 'datatable' object.
+    
+    # this part cannot be piped together with the previous section. ncol(dt) does not evaluate
+    # columns = -c(1:2) does not work
+    # keep 4 sigfigs for all columns up to n except for the first two
+    dt_sigfigs <- dt %>% datatable() %>%  formatSignif(columns=c(3:ncol(dt)), digits=4)
+    return(dt_sigfigs)  
+      
+  })
+  
+  
+  topTabDF <- reactive({
+    # fit_contrast <- contrasts.fit(fit, contrasts = contrast())
+    # efit <- eBayes(fit_contrast, robust = TRUE)
+    
+    
+    dt <- topTable(efit(), coef=c(1:ncol(contrast())), n=Inf, p.value=0.05, adjust.method="BH", lfc=1) %>%
+      tibble::rownames_to_column(., var="Gene") %>%
+      select(!c('ProbeName','GeneID',  'HUGOSymbol', 'ProbeDisplayName', 'Accessions', 'GenomeBuild', 'AnalyteType', 'CodeClass', 'ProbePool',
+                'TargetGroup', 'genes_lowCount_overNsamples')) 
+    # mutate(across(which(is.numeric))) is not compatible with renderDT which is a 'datatable' object.
+    
+    # this part cannot be piped together with the previous section. ncol(dt) does not evaluate
+    # columns = -c(1:2) does not work
+    # keep 4 sigfigs for all columns up to n except for the first two
+    # dt_sigfigs <- dt %>% datatable() %>%  formatSignif(columns=c(3:ncol(dt)), digits=4)
+    return(dt)  
+    
+  })
+  
+  output$table <- renderUI({
+    renderDataTable(
+      topTabDT()
+    )
+  })
+  
+  output$downloadTable <- downloadHandler(
+    filename = "output.csv",
+    content = function(file) {write.table(topTabDF(), file, sep=",", row.names = F)}
+  )
+  
+  
+  plotHeight <- reactive(350* ncol(contrast()))
+  
+  
+  
+  output$volcano <- renderUI({
+    volcanoTable <- list()
+    volcanoDF <- list()
+    plots <- list()
+    
+    # for (i in 1:ncol(contrast())){
+    #   volcanoTable[i] <- paste0("hello",i)
+    # }
+    # 
+    # renderText({unlist(volcanoTable)})
+    
+    for (i in 1:ncol(contrast())) {
+      volcanoTable[[i]] <- topTable(efit(), coef= i , n=Inf)
+      volcanoDF[[i]] <- data.frame(Target.name = rownames(volcanoTable[[i]]),
+                                 cbind(logFC = volcanoTable[[i]]$logFC,
+                                       PValue = volcanoTable[[i]]$adj.P.Val))
+      volcanoDF[[i]]$de <- "NO"
+      volcanoDF[[i]]$de[volcanoDF[[i]]$logFC >=1 & volcanoDF[[i]]$PValue < 0.05] <- "UP"
+      volcanoDF[[i]]$de[volcanoDF[[i]]$logFC <= -1 & volcanoDF[[i]]$PValue < 0.05] <- "DN"
+      volcanoDF[[i]]$deLab <- NA
+      volcanoDF[[i]]$deLab[volcanoDF[[i]]$de!="NO"] <- volcanoDF[[i]]$Target.name[volcanoDF[[i]]$de != "NO"]
+      
+     
+      
+      # Because i is used inside ggplot function, and for loops have no separate variable scope
+      # local() is used
+      plots[[i]] <- local({
+        # makes i a local variable for ggplot
+        i <- i
+        ggplot(data=volcanoDF[[i]],
+                               aes(x=logFC,
+                                 y=-log10(PValue),
+                                 # x=sample(seq),
+                                 # y=logFC,
+                                 col=de,
+                                 label=deLab))+
+        geom_point()+
+        theme_bw()+
+        theme(
+          axis.ticks = element_line(colour="black"),
+          panel.border = element_rect(colour="black"),
+          text=element_text(size=14, color="black"),
+          axis.text=element_text(size=14, color="black"),
+          plot.margin=unit(c(1,1,1,1),"cm"),
+          plot.background=element_rect(fill="transparent", colour=NA),
+          panel.background=element_rect(fill="transparent", colour=NA),
+          panel.grid = element_blank(),
+          legend.background=element_rect(fill="transparent", colour=NA),
+          legend.box.background=element_rect(fill="transparent", colour=NA),
+          legend.key=element_rect(fill="transparent", colour=NA),
+          legend.position="none")+
+        geom_vline(xintercept=c(-1,1), col="black",
+                   linetype=3)+
+        geom_hline(yintercept=-log10(0.05), col="black",
+                   linetype=3)+
+        # geom_text_repel(
+        #   segment.colour="black",
+        #   segment.linetype=3,
+        #   data=volcanoTable[[i]] %>%
+        #     filter(logFC>=1|logFC<=-1),
+        #   aes(label=deLab),
+        #   #position=position_nudge_center(direction="radial",x=3,y=3, center_x=0, center_y=5),
+        #   min.segment.length=0,
+        #   max.overlaps=4)+
+        scale_color_manual(values=c("darkblue", "grey75", "red"),
+                           breaks=c("DN","NA","UP"))+
+        xlab(expression(log[2]~fold~change))+
+        ylab(expression(-log[10]~italic(P)~value))+
+        # scale_y_continuous(
+        #   labels = scales::label_number(accuracy = 0.1),
+        #   breaks = function(x) pretty(floor(seq(0, max(x+1)*1.5))))+
+        theme(aspect.ratio=1, rect=element_rect(fill="transparent"))+
+        ggtitle(colnames(contrast())[i])
+      })
+      
+    }
+    
+    # renderPlot({
+    #   for (i in 1:ncol(contrast())){
+    #    volcanoPlot[[i]]
+    #   }
+    # })
+    # renderPlot({
+    #   
+    #   volcanoPlot
+    #   
+    #   
+    # })
+    
+    # Plots as a list can be grouped into a grid and output
+    renderPlot(
+      #grid.arrange(grobs = plots)
+      plot_grid(plotlist = plots, ncol=1, align="v"),
+      height = plotHeight()
+    )
+    
+
+  
   })
   
 }
