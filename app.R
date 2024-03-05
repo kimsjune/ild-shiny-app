@@ -17,6 +17,7 @@ library(ggrepel)
 library(ggpp)
 library(ggh4x)
 library(limma)
+library(statmod)
 
 
 library(ComplexHeatmap)
@@ -191,10 +192,10 @@ ui <- bslib::page_navbar(
   # 
   #   uiOutput("volcano") %>% withSpinner()
   # ),
-  bslib::nav_panel(
-    "Viz.",
-    navset_card_tab(
-      nav_panel(
+    bslib::nav_panel(
+    # "Viz.",
+    # navset_card_tab(
+      #nav_panel(
         "PCA",
         uiOutput("text_out",
                  style="width:100px;"),
@@ -210,6 +211,7 @@ ui <- bslib::page_navbar(
         )
         
       ),
+  
       
       nav_panel(
         "Table",
@@ -320,10 +322,8 @@ ui <- bslib::page_navbar(
           uiOutput("heatmapUI") %>% withSpinner(type=4),
           downloadButton("downloadHeatmap")
         )
-      )
-    )
-  ),
-  bslib::nav_spacer(),
+      ),
+  
   
   bslib::nav_panel(
     "Appendix",
@@ -484,7 +484,7 @@ server <- function(input, output, session) {
   
   # Subset data based on user input
   spe_ruv_subset <- eventReactive(reactiveRun(),{
-    spe_ruv_subset <- spe_ruv[,grepl(paste(reactiveRun(), collapse = "|"), spe_ruv$anno_type)]
+    spe_ruv_subset <- spe_ruv[,grepl(paste(reactiveRun(), collapse = "|"), spe_ruv$anno_type)] 
     spe_ruv_subset <- scater::runPCA(spe_ruv_subset)
     return(spe_ruv_subset)
   })
@@ -493,6 +493,8 @@ server <- function(input, output, session) {
   pca_ruv_results_subset <- eventReactive(spe_ruv_subset(),{
     return(reducedDim(spe_ruv_subset(), "PCA"))
   })
+  
+
   
   # PCA plot pt 2
   output$pca <- renderUI({
@@ -511,7 +513,7 @@ server <- function(input, output, session) {
     # spe_ruv_subset <- spe_ruv[,grepl(paste(reactiveRun(), collapse = "|"), spe_ruv$anno_type)]
     # spe_ruv_subset<- scater::runPCA(spe_ruv_subset)
     # pca_ruv_results_subset<- reducedDim(spe_ruv_subset, "PCA")
-    
+
     
     renderPlot({
       # withProgress(message="Making plot", value=0, {
@@ -526,9 +528,10 @@ server <- function(input, output, session) {
       
       drawPCA(spe_ruv_subset(), precomputed=pca_ruv_results_subset())+
         #geom_point(colour="black", pch=21, size=2.5)+
-        geom_point(aes(shape=anno_type, fill=anno_type), size=3, colour="black", stroke=0.5)+
+        # use factor() to disable alphabetical reordering in the legend
+        geom_point(aes(shape=factor(anno_type, levels = unlist(reactiveRun())), 
+                       fill=factor(anno_type, levels= unlist(reactiveRun()))), size=3, colour="black", stroke=0.5)+
         
-        # console outputs error because this code does not wait for ROIshapes and ROIcolours to be evaludated
         scale_shape_manual("Annotation-condition",
                            values = as.integer(unlist(ROIshapes)) # as.integer() crucial
         )+
