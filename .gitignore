@@ -3,3 +3,6 @@
 !app.R
 !data
 !data/*
+!www
+!www/**
+!README.md
