@@ -27,6 +27,7 @@ library(circlize)
 
 library(tidyverse)
 library(tibble)
+renv::restore()
 set.seed(0)
 options(warn=-1)
 withMathJax()
