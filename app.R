@@ -1,5 +1,7 @@
 library(renv)
 library(shiny)
+library(shinymanager)
+
 library(dplyr)
 library(shinyjs)
 library(bslib)
@@ -49,7 +51,16 @@ annotation_condition_list <- list(
 )
 
 
-
+credentials <- data.frame(
+  user = c("shiny"), # mandatory
+  password = c("ild"), # mandatory
+#  start = c("2019-04-15"), # optinal (all others)
+#  expire = c(NA, "2019-12-31"),
+  admin = FALSE,
+  comment = "Simple and secure authentification mechanism 
+  for single ‘Shiny’ applications.",
+  stringsAsFactors = FALSE
+)
 
 
 # Define UI ----
@@ -389,6 +400,10 @@ ui <- bslib::page_navbar(
 )
 
 
+
+
+
+ui <- secure_app(ui)
 
 
 # Define server logic ----
@@ -1048,7 +1063,14 @@ server <- function(input, output, session) {
     contentType = "image/png"
   )
   
+  # check_credentials returns a function to authenticate users
+  res_auth <- secure_server(
+    check_credentials = check_credentials(credentials)
+  )
   
+  output$auth_output <- renderPrint({
+    reactiveValuesToList(res_auth)
+  })  
   
 
   
