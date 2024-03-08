@@ -1,4 +1,3 @@
-library(renv)
 library(shiny)
 library(shinymanager)
 
@@ -27,10 +26,10 @@ library(circlize)
 
 library(tidyverse)
 library(tibble)
-renv::restore()
+
 set.seed(0)
 options(warn=-1)
-withMathJax()
+
 spe_ruv <- readRDS("data/spe_ruv.rds")
 design <- readRDS("data/design.rds")
 fit <- readRDS("data/fit.rds")
