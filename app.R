@@ -714,7 +714,7 @@ server <- function(input, output, session) {
     # dt_sigfigs <- dt %>% datatable() %>%  formatSignif(columns=c(3:ncol(dt)), digits=4)
     }
     else {
-      dt <- topTable(efit(), coef=c(1:ncol(contrast())), n=Inf, p.value=0.05, sort.by = "F", adjust.method="BH", lfc=lfc()) %>%
+      dt <- topTable(efit(), coef=c(1:ncol(contrast())), n=Inf, p.value=0.05, sort.by = "P", adjust.method="BH", lfc=lfc()) %>%
         tibble::rownames_to_column(., var="Gene") %>%
         select(!c('ProbeName','GeneID',  'HUGOSymbol', 'ProbeDisplayName', 'Accessions', 'GenomeBuild', 'AnalyteType', 'CodeClass', 'ProbePool', 'TargetGroup', 'genes_lowCount_overNsamples'))
     }
