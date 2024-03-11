@@ -109,13 +109,13 @@ ui <- bslib::page_navbar(
       )
     ),
     
-    tags$div(
-      tags$p(
-        a(shiny::icon("github"), " ",
-          style = "padding: 10px; text-decoration: none;",
-          href = "https://github.com/rstudio/shiny")
-      )
-    )
+    # tags$div(
+    #   tags$p(
+    #     a(shiny::icon("github"), " ",
+    #       style = "padding: 10px; text-decoration: none;",
+    #       href = "https://github.com/kimsjune/ild-shiny-app")
+    #   )
+    # )
 
     
 
