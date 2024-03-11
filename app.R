@@ -96,6 +96,7 @@ ui <- bslib::page_navbar(
     actionButton("run", "Run",
                  style = 'dispaly: inline-block; padding: 4px'),
     helpText(
+      tags$div(
       tags$p("IPF: idiopathic pulmonary fibrosis"),
       tags$p("NSIP: non-specific interstitial pneumonia"),
       tags$p("CHP: chronic hypersensitivity pneumonitis"),
@@ -103,9 +104,11 @@ ui <- bslib::page_navbar(
       tags$p("NOR:", em("bona fide"), "normal"),
       hr(),
       tags$p("neutral: uninvolved"),
-      tags$p("fibroblast: fibroblastic foci")
+      tags$p("fibroblast: fibroblastic foci"),
+      hr()
+      )
     ),
-    hr(),
+    
     tags$div(
       tags$p(
         a(shiny::icon("github"), " ",
@@ -242,6 +245,7 @@ ui <- bslib::page_navbar(
                  style="width:100px;"),
         uiOutput("pca",
                  style = "padding: 4px;") %>% withSpinner(type=4) ,
+        downloadButton('downloadPCA', "Save PCA"),
         
         actionButton("toggle_PCAcustom", "Show/hide options",
                      style = "display: inline-block; padding: 4px;"),
@@ -553,7 +557,7 @@ server <- function(input, output, session) {
 
   
   # PCA plot pt 2
-  output$pca <- renderUI({
+  pcaPlot <- eventReactive(reactiveRun(),{
     # Initialize
     ROIshapes <- list()
     ROIcolours <- list()
@@ -571,7 +575,7 @@ server <- function(input, output, session) {
     # pca_ruv_results_subset<- reducedDim(spe_ruv_subset, "PCA")
 
     
-    renderPlot({
+    #renderPlot({
       # withProgress(message="Making plot", value=0, {
       #   n <- 10
       #
@@ -582,7 +586,7 @@ server <- function(input, output, session) {
       # })
       
       
-      drawPCA(spe_ruv_subset(), precomputed=pca_ruv_results_subset())+
+      pca <- drawPCA(spe_ruv_subset(), precomputed=pca_ruv_results_subset())+
         #geom_point(colour="black", pch=21, size=2.5)+
         # use factor() to disable alphabetical reordering in the legend
         geom_point(aes(shape=factor(anno_type, levels = unlist(reactiveRun())), 
@@ -623,10 +627,28 @@ server <- function(input, output, session) {
         force_panelsizes(rows = unit(2.5, "in"),
                          cols = unit(2.5, "in"))
       
-      
-      
-    })
+      return(pca)
+
+   # })
   })
+  
+  output$pca <- renderUI({
+    renderPlot(pcaPlot())
+  })
+  
+  output$downloadPCA <- downloadHandler(
+    filename = function() {
+      paste0("pca_",Sys.Date(),".png")
+    },
+    content = function(file) { 
+
+      png(file)
+      plot(pcaPlot())
+      dev.off()
+    },
+    contentType = "image/png"
+    
+  )
   
   
   # Contrasts
@@ -929,7 +951,7 @@ server <- function(input, output, session) {
       paste0("volcano_",Sys.Date(),".png")
     },
     content = function(file) { 
-      save_plot(volcanoPlots(),filename = file)
+      save_plot(file, volcanoPlots())
     },
     contentType = "image/png"
 
