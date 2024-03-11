@@ -557,7 +557,7 @@ server <- function(input, output, session) {
 
   
   # PCA plot pt 2
-  pcaPlot <- eventReactive(reactiveRun(),{
+  pcaPlot <- reactive({
     # Initialize
     ROIshapes <- list()
     ROIcolours <- list()
