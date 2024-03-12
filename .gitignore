@@ -6,5 +6,5 @@
 !www
 !www/**
 !README.md
-!.R*
-!renv.lock
+.R*
+renv.lock
