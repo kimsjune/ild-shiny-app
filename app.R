@@ -643,7 +643,7 @@ server <- function(input, output, session) {
     content = function(file) { 
 
       png(file)
-      plot(pcaPlot())
+      pcaPlot()
       dev.off()
     },
     contentType = "image/png"
