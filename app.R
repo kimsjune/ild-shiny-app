@@ -164,8 +164,8 @@ ui <- bslib::page_navbar(
              tags$div(class = "introText",
                       # tags$div(
                         tags$h3("Citation"),
-                        p("If you use this resource, please cite ", 
-                          a(href="TBD.com", "Kim et. al. 2024")),
+                        # p("If you use this resource, please cite ", 
+                        #   a(href="TBD.com", "Kim et. al. 2024")),
                               # ),
                       # tags$div(
                       #  tags$h3("Links"),
