@@ -9,3 +9,4 @@
 .R*
 renv.lock
 !Dockerfile
+!.dockerignore
