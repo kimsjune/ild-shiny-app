@@ -6,12 +6,7 @@
 !www
 !www/**
 !README.md
-<<<<<<< HEAD
-!.R*
-!renv.lock
-=======
 .R*
 renv.lock
 !Dockerfile
 !.dockerignore
->>>>>>> dev
