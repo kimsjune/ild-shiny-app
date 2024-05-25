@@ -1,5 +1,6 @@
-library(renv)
 library(shiny)
+library(shinymanager)
+
 library(dplyr)
 library(shinyjs)
 library(bslib)
@@ -25,9 +26,10 @@ library(circlize)
 
 library(tidyverse)
 library(tibble)
+
 set.seed(0)
 options(warn=-1)
-withMathJax()
+
 spe_ruv <- readRDS("data/spe_ruv.rds")
 design <- readRDS("data/design.rds")
 fit <- readRDS("data/fit.rds")
@@ -49,7 +51,16 @@ annotation_condition_list <- list(
 )
 
 
-
+# credentials <- data.frame(
+#   user = c("shiny"), # mandatory
+#   password = c("ild"), # mandatory
+# #  start = c("2019-04-15"), # optinal (all others)
+# #  expire = c(NA, "2019-12-31"),
+#   admin = FALSE,
+#   comment = "Simple and secure authentification mechanism 
+#   for single ‘Shiny’ applications.",
+#   stringsAsFactors = FALSE
+# )
 
 
 # Define UI ----
@@ -85,6 +96,7 @@ ui <- bslib::page_navbar(
     actionButton("run", "Run",
                  style = 'dispaly: inline-block; padding: 4px'),
     helpText(
+      tags$div(
       tags$p("IPF: idiopathic pulmonary fibrosis"),
       tags$p("NSIP: non-specific interstitial pneumonia"),
       tags$p("CHP: chronic hypersensitivity pneumonitis"),
@@ -92,16 +104,18 @@ ui <- bslib::page_navbar(
       tags$p("NOR:", em("bona fide"), "normal"),
       hr(),
       tags$p("neutral: uninvolved"),
-      tags$p("fibroblast: fibroblastic foci")
-    ),
-    hr(),
-    tags$div(
-      tags$p(
-        a(shiny::icon("github"), " ",
-          style = "padding: 10px; text-decoration: none;",
-          href = "https://github.com/rstudio/shiny")
+      tags$p("fibroblast: fibroblastic foci"),
+      hr()
       )
-    )
+    ),
+    
+    # tags$div(
+    #   tags$p(
+    #     a(shiny::icon("github"), " ",
+    #       style = "padding: 10px; text-decoration: none;",
+    #       href = "https://github.com/kimsjune/ild-shiny-app")
+    #   )
+    # )
 
     
 
@@ -150,8 +164,8 @@ ui <- bslib::page_navbar(
              tags$div(class = "introText",
                       # tags$div(
                         tags$h3("Citation"),
-                        p("If you use this resource, please cite ", 
-                          a(href="TBD.com", "Kim et. al. 2024")),
+                        # p("If you use this resource, please cite ", 
+                        #   a(href="TBD.com", "Kim et. al. 2024")),
                               # ),
                       # tags$div(
                       #  tags$h3("Links"),
@@ -231,6 +245,7 @@ ui <- bslib::page_navbar(
                  style="width:100px;"),
         uiOutput("pca",
                  style = "padding: 4px;") %>% withSpinner(type=4) ,
+        downloadButton('downloadPCA', "Save PCA"),
         
         actionButton("toggle_PCAcustom", "Show/hide options",
                      style = "display: inline-block; padding: 4px;"),
@@ -391,6 +406,10 @@ ui <- bslib::page_navbar(
 
 
 
+
+# ui <- secure_app(ui)
+
+
 # Define server logic ----
 server <- function(input, output, session) {
   observeEvent(input$run,{
@@ -538,7 +557,7 @@ server <- function(input, output, session) {
 
   
   # PCA plot pt 2
-  output$pca <- renderUI({
+  pcaPlot <- reactive({
     # Initialize
     ROIshapes <- list()
     ROIcolours <- list()
@@ -556,7 +575,7 @@ server <- function(input, output, session) {
     # pca_ruv_results_subset<- reducedDim(spe_ruv_subset, "PCA")
 
     
-    renderPlot({
+    #renderPlot({
       # withProgress(message="Making plot", value=0, {
       #   n <- 10
       #
@@ -567,7 +586,7 @@ server <- function(input, output, session) {
       # })
       
       
-      drawPCA(spe_ruv_subset(), precomputed=pca_ruv_results_subset())+
+      pca <- drawPCA(spe_ruv_subset(), precomputed=pca_ruv_results_subset())+
         #geom_point(colour="black", pch=21, size=2.5)+
         # use factor() to disable alphabetical reordering in the legend
         geom_point(aes(shape=factor(anno_type, levels = unlist(reactiveRun())), 
@@ -608,10 +627,28 @@ server <- function(input, output, session) {
         force_panelsizes(rows = unit(2.5, "in"),
                          cols = unit(2.5, "in"))
       
-      
-      
-    })
+      return(pca)
+
+   # })
   })
+  
+  output$pca <- renderUI({
+    renderPlot(pcaPlot())
+  })
+  
+  output$downloadPCA <- downloadHandler(
+    filename = function() {
+      paste0("pca_",Sys.Date(),".png")
+    },
+    content = function(file) { 
+
+      png(file)
+      pcaPlot()
+      dev.off()
+    },
+    contentType = "image/png"
+    
+  )
   
   
   # Contrasts
@@ -699,7 +736,7 @@ server <- function(input, output, session) {
     # dt_sigfigs <- dt %>% datatable() %>%  formatSignif(columns=c(3:ncol(dt)), digits=4)
     }
     else {
-      dt <- topTable(efit(), coef=c(1:ncol(contrast())), n=Inf, p.value=0.05, sort.by = "F", adjust.method="BH", lfc=lfc()) %>%
+      dt <- topTable(efit(), coef=c(1:ncol(contrast())), n=Inf, p.value=0.05, sort.by = "P", adjust.method="BH", lfc=lfc()) %>%
         tibble::rownames_to_column(., var="Gene") %>%
         select(!c('ProbeName','GeneID',  'HUGOSymbol', 'ProbeDisplayName', 'Accessions', 'GenomeBuild', 'AnalyteType', 'CodeClass', 'ProbePool', 'TargetGroup', 'genes_lowCount_overNsamples'))
     }
@@ -914,7 +951,7 @@ server <- function(input, output, session) {
       paste0("volcano_",Sys.Date(),".png")
     },
     content = function(file) { 
-      save_plot(volcanoPlots(),filename = file)
+      save_plot(file, volcanoPlots())
     },
     contentType = "image/png"
 
@@ -1048,7 +1085,14 @@ server <- function(input, output, session) {
     contentType = "image/png"
   )
   
-  
+  # # check_credentials returns a function to authenticate users
+  # res_auth <- secure_server(
+  #   check_credentials = check_credentials(credentials)
+  # )
+  # 
+  # output$auth_output <- renderPrint({
+  #   reactiveValuesToList(res_auth)
+  # })  
   
 
   
