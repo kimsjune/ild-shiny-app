@@ -1,3 +1,6 @@
+# Identify version
+version <- "v0.1"
+
 library(shiny)
 library(shinymanager)
 
@@ -105,7 +108,8 @@ ui <- bslib::page_navbar(
       hr(),
       tags$p("neutral: uninvolved"),
       tags$p("fibroblast: fibroblastic foci"),
-      hr()
+      hr(),
+      tags$p(version)
       )
     ),
     
