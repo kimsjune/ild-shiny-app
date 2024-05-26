@@ -32,7 +32,7 @@ RUN R -q -e "options(warn=2); install.packages(c('shiny'))"
 RUN R -q -e "options(warn=2); install.packages(c('devtools','shinymanager','dplyr','shinyjs','bslib','shinylive','shinycssloaders','DT','mathjaxr','colorspace','ggplot2','gridExtra','cowplot','ggrepel','ggpp','ggh4x','statmod','circlize','tidyverse','tibble','BiocManager'))"
 RUN R -q -e "options(warn=2); library(BiocManager)"
 RUN R -q -e "options(warn=2); BiocManager::install(version = '3.19')"
-RUN R -q -e "options(warn=2); BiocManager::install(c('ComplexHeatmap','standR','limma'))"
+RUN R -q -e "options(warn=2); BiocManager::install(c('ComplexHeatmap','standR','limma','scater'))"
 
 # install R code
 COPY . /app
